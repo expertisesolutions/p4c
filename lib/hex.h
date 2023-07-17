@@ -20,9 +20,10 @@ limitations under the License.
 #include <iomanip>
 #include <iostream>
 #include <vector>
+#include <cstdint>
 
 class hex {
-    intmax_t val;
+    std::intmax_t val;
     int width;
     char fill;
 
