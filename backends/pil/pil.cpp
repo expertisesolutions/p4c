@@ -20,6 +20,9 @@ and limitations under the License.
 #include "frontends/common/applyOptionsPragmas.h"
 #include "frontends/common/parseInput.h"
 #include "frontends/p4/frontend.h"
+#include "frontends/p4/simplify.h"
+#include "frontends/p4/simplifyParsers.h"
+#include "frontends/p4/simplifySwitch.h"
 #include "ir/ir.h"
 #include "lib/error.h"
 #include "lib/exceptions.h"
@@ -29,9 +32,46 @@ and limitations under the License.
 //#include "midend.h"
 #include "options.h"
 #include "version.h"
+#include "midend/actionSynthesis.h"
+#include "midend/compileTimeOps.h"
+#include "midend/complexComparison.h"
+#include "midend/convertEnums.h"
+#include "midend/convertErrors.h"
+#include "midend/copyStructures.h"
+#include "midend/eliminateInvalidHeaders.h"
+#include "midend/eliminateNewtype.h"
+#include "midend/eliminateSerEnums.h"
+#include "midend/eliminateSwitch.h"
+#include "midend/eliminateTuples.h"
+#include "midend/eliminateTypedefs.h"
+#include "midend/expandEmit.h"
+#include "midend/expandLookahead.h"
+#include "midend/fillEnumMap.h"
+#include "midend/flattenHeaders.h"
+#include "midend/flattenInterfaceStructs.h"
+#include "midend/flattenUnions.h"
+#include "midend/hsIndexSimplify.h"
+#include "midend/local_copyprop.h"
+#include "midend/midEndLast.h"
+#include "midend/nestedStructs.h"
+#include "midend/noMatch.h"
+#include "midend/orderArguments.h"
+#include "midend/parserUnroll.h"
+#include "midend/predication.h"
+#include "midend/removeAssertAssume.h"
+#include "midend/removeExits.h"
+#include "midend/removeLeftSlices.h"
+#include "midend/removeMiss.h"
+#include "midend/removeSelectBooleans.h"
+#include "midend/removeUnusedParameters.h"
+#include "midend/replaceSelectRange.h"
+#include "midend/simplifyKey.h"
+#include "midend/simplifySelectCases.h"
+#include "midend/simplifySelectList.h"
+#include "midend/tableHit.h"
+#include "midend/validateProperties.h"
 
 int main(int argc, char *const argv[]) {
-  fprintf(stderr, "target\n"); fflush(stderr);
     setup_gc_logging();
     AutoCompileContext autoPILContext(new PIL::PILContext);
     auto &options = PIL::PILContext::get().options();
@@ -74,6 +114,7 @@ int main(int argc, char *const argv[]) {
 
     const IR::ToplevelBlock *toplevel = nullptr;
     auto evaluator = new P4::EvaluatorPass(&refMap, &typeMap);
+
     PassManager midEnd = {};
     {
       midEnd.setName("MidEnd");
@@ -81,11 +122,65 @@ int main(int argc, char *const argv[]) {
       //program = program->apply(midEnd);
       if (::errorCount() > 0) return -1;
 
-      midEnd.addPasses({evaluator});
+      midEnd.addPasses({
+            new P4::RemoveMiss(&refMap, &typeMap),
+            new P4::EliminateNewtype(&refMap, &typeMap),
+            new P4::EliminateSerEnums(&refMap, &typeMap),
+            new P4::EliminateInvalidHeaders(&refMap, &typeMap),
+            new P4::OrderArguments(&refMap, &typeMap),
+            new P4::TypeChecking(&refMap, &typeMap),
+            new P4::SimplifyKey(
+                &refMap, &typeMap,
+                new P4::OrPolicy(new P4::IsValid(&refMap, &typeMap), new P4::IsLikeLeftValue())),
+            new P4::RemoveExits(&refMap, &typeMap),
+            new P4::ConstantFolding(&refMap, &typeMap),
+            new P4::StrengthReduction(&refMap, &typeMap),
+            new P4::SimplifySelectCases(&refMap, &typeMap, true),
+            // The lookahead implementation in DPDK target supports only a header instance as
+            // an operand, we do not expand headers.
+            // Structures expanded here are then processed as base bit type in ConvertLookahead
+            // pass in backend.
+            new P4::ExpandLookahead(&refMap, &typeMap, nullptr, false),
+            new P4::ExpandEmit(&refMap, &typeMap),
+            new P4::HandleNoMatch(&refMap),
+            new P4::SimplifyParsers(&refMap),
+            new P4::StrengthReduction(&refMap, &typeMap),
+            new P4::EliminateTuples(&refMap, &typeMap),
+            new P4::SimplifyComparisons(&refMap, &typeMap),
+            new P4::CopyStructures(&refMap, &typeMap, false /* errorOnMethodCall */),
+            new P4::NestedStructs(&refMap, &typeMap),
+            new P4::SimplifySelectList(&refMap, &typeMap),
+            new P4::RemoveSelectBooleans(&refMap, &typeMap),
+            new P4::FlattenHeaders(&refMap, &typeMap),
+            new P4::FlattenInterfaceStructs(&refMap, &typeMap),
+            new P4::EliminateTypedef(&refMap, &typeMap),
+            new P4::HSIndexSimplifier(&refMap, &typeMap),
+            new P4::ParsersUnroll(true, &refMap, &typeMap),
+            new P4::FlattenHeaderUnion(&refMap, &typeMap),
+            new P4::SimplifyControlFlow(&refMap, &typeMap),
+            new P4::ReplaceSelectRange(&refMap, &typeMap),
+            new P4::MoveDeclarations(),  // more may have been introduced
+            new P4::ConstantFolding(&refMap, &typeMap),
+            //new P4::LocalCopyPropagation(&refMap, &typeMap, nullptr, policy),
+            new PassRepeated({new P4::ConstantFolding(&refMap, &typeMap),
+                              new P4::StrengthReduction(&refMap, &typeMap)}),
+            new P4::MoveDeclarations(),
+            new P4::SimplifyControlFlow(&refMap, &typeMap),
+            new P4::SimplifySwitch(&refMap, &typeMap),
+            new P4::CompileTimeOperations(),
+            new P4::TableHit(&refMap, &typeMap),
+            new P4::RemoveLeftSlices(&refMap, &typeMap),
+            new P4::TypeChecking(&refMap, &typeMap),
+            new P4::EliminateSerEnums(&refMap, &typeMap),
+            ///
+          new P4::MidEndLast(),
+            evaluator,
+            new VisitFunctor([&]() { toplevel = evaluator->getToplevelBlock(); })
+        });
 
       program = program->apply(midEnd);
 
-      toplevel = evaluator->getToplevelBlock();
+      //toplevel = evaluator->getToplevelBlock();
       assert(toplevel != nullptr);
     }
 
@@ -109,7 +204,7 @@ int main(int argc, char *const argv[]) {
     // if (::errorCount() > 0) {
     //     return 1;
     // }
-    PIL::Backend backend(toplevel/*, &midEnd.refMap, &midEnd.typeMap*/, options);
+    PIL::Backend backend(toplevel, &refMap, &typeMap, options);
     if (!backend.process()) return 1;
 
     // if (!options.introspecFile.isNullOrEmpty()) {

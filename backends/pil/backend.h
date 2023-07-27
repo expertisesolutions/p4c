@@ -27,7 +27,7 @@ and limitations under the License.
 #include "lib/error.h"
 #include "lib/nullstream.h"
 #include "options.h"
-//#include "pnaProgramStructure.h"
+#include "pnaProgramStructure.h"
 //#include "tcAnnotations.h"
 #include "pil_defines.h"
 
@@ -61,9 +61,9 @@ class ConvertToBackendIR : public Inspector {
     ordered_map<unsigned, unsigned> tableKeysizeList;
 
  public:
-  ConvertToBackendIR(const IR::ToplevelBlock *tlb/*, IR::PILPipeline *pipe, P4::ReferenceMap *refMap,
-                       P4::TypeMap *typeMap*/, PILOptions &options)
-    : tlb(tlb)/*, tcPipeline(pipe), refMap(refMap), typeMap(typeMap)*/, options(options) {}
+  ConvertToBackendIR(const IR::ToplevelBlock *tlb, IR::PILPipeline *pipe, P4::ReferenceMap *refMap,
+                       P4::TypeMap *typeMap, PILOptions &options)
+    : tlb(tlb), tcPipeline(pipe), refMap(refMap), typeMap(typeMap), options(options) {}
     void setPipelineName();
     bool preorder(const IR::P4Program *p) override;
     void postorder(const IR::P4Action *a) override;
@@ -88,8 +88,8 @@ class ConvertToBackendIR : public Inspector {
 class Backend : public PassManager {
  public:
     const IR::ToplevelBlock *toplevel;
-    // P4::ReferenceMap *refMap;
-    // P4::TypeMap *typeMap;
+    P4::ReferenceMap *refMap;
+    P4::TypeMap *typeMap;
     PILOptions &options;
     IR::PILPipeline *pipeline = new IR::PILPipeline();
     PIL::ConvertToBackendIR *tcIR;
@@ -101,9 +101,9 @@ class Backend : public PassManager {
     const PNAEbpfGenerator *ebpf_program;
 
  public:
-    explicit Backend(const IR::ToplevelBlock *toplevel/*, P4::ReferenceMap *refMap,
-                                                        P4::TypeMap *typeMap*/, PILOptions &options)
-      : toplevel(toplevel)/*, refMap(refMap), typeMap(typeMap)*/, options(options) {
+    explicit Backend(const IR::ToplevelBlock *toplevel, P4::ReferenceMap *refMap,
+                     P4::TypeMap *typeMap, PILOptions &options)
+      : toplevel(toplevel), refMap(refMap), typeMap(typeMap), options(options) {
         setName("BackEnd");
     }
     bool process();

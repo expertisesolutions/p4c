@@ -334,7 +334,7 @@ class PILPipeline {
         std::string tcCode = "#!/bin/bash -x\n";
         tcCode += "\nset -e\n";
         tcCode += "\nPIL=\"tc\"";
-        tcCode += "\n$PIL p4template create pipeline/" + pipelineName + " pipeid ";
+        tcCode += "\n$PIL p4template create pipeline/" + (pipelineName ? pipelineName : "<noname>") + " pipeid ";
         tcCode += Util::toString(pipelineId);
         tcCode += " numtables ";
         tcCode += Util::toString(numTables);
@@ -358,7 +358,7 @@ class PILPipeline {
             tcCode += "\n$PIL p4template update pipeline/" + pipelineName
                       + " postactions action " + pipelineName + "/postaction";
         }
-        tcCode += "\n$PIL p4template update pipeline/" + pipelineName + " state ready";
+        tcCode += "\n$PIL p4template update pipeline/" + (pipelineName ? pipelineName : "<noname>") + " state ready";
         return tcCode;
     }
     dbprint { out << toString(); }

@@ -45,13 +45,54 @@ bool Backend::process() {
     // auto refMapEBPF = refMap;
     // auto typeMapEBPF = typeMap;
     //parseTCAnno = new ParseTCAnnotations();
-    tcIR = new ConvertToBackendIR(toplevel/*, pipeline, refMap, typeMap*/, options);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    tcIR = new ConvertToBackendIR(toplevel, pipeline, refMap, typeMap, options);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     //genIJ = new IntrospectionGenerator(pipeline, refMap, typeMap);
-    // addPasses({parsePILAnno, new P4::ResolveReferences(refMap),
-    //            new P4::TypeInference(refMap, typeMap), tcIR, genIJ});
+    addPasses({new P4::ResolveReferences(refMap),
+               new P4::TypeInference(refMap, typeMap), tcIR});
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     toplevel->getProgram()->apply(*this);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     if (::errorCount() > 0) return false;
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     //if (!ebpfCodeGen(refMapEBPF, typeMapEBPF)) return false;
+
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    auto main = toplevel->getMain();
+    if (!main) return false;
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    PnaProgramStructure structure(refMap, typeMap);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    auto parsePnaArch = new ParsePnaArchitecture(&structure);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
+    main->apply(*parsePnaArch);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    auto evaluator = new P4::EvaluatorPass(refMap, typeMap);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    auto program = toplevel->getProgram();
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
+    //program = program->apply(rewriteToEBPF);
+
+    // map IR node to compile-time allocated resource blocks.
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    toplevel->apply(*new BMV2::BuildResourceMap(&structure.resourceMap));
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    main = toplevel->getMain();
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    if (!main) return false;  // no main
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    main->apply(*parsePnaArch);
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+    program = toplevel->getProgram();
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
     return true;
 }
 
@@ -183,6 +224,7 @@ bool ConvertToBackendIR::isDuplicateOrNoAction(const IR::P4Action *action) {
 }
 
 void ConvertToBackendIR::postorder(const IR::P4Action *action) {
+  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(action).name() << std::endl;
     if (action != nullptr) {
         if (isDuplicateOrNoAction(action)) return;
         auto actionName = externalName(action);
@@ -239,6 +281,7 @@ void ConvertToBackendIR::postorder(const IR::P4Action *action) {
 }
 
 void ConvertToBackendIR::updateDefaultMissAction(const IR::P4Table *t, IR::PILTable *tabledef) {
+  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(tabledef).name() << std::endl;
     auto defaultAction = t->getDefaultAction();
     if (defaultAction == nullptr || !defaultAction->is<IR::MethodCallExpression>()) return;
     auto methodexp = defaultAction->to<IR::MethodCallExpression>();
@@ -261,6 +304,7 @@ void ConvertToBackendIR::updateDefaultMissAction(const IR::P4Table *t, IR::PILTa
 }
 
 void ConvertToBackendIR::updateDefaultHitAction(const IR::P4Table *t, IR::PILTable *tabledef) {
+  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(tabledef).name() << std::endl;
     auto actionlist = t->getActionList();
     if (actionlist != nullptr) {
         unsigned int defaultHit = 0;
@@ -348,6 +392,7 @@ void ConvertToBackendIR::updateDefaultHitAction(const IR::P4Table *t, IR::PILTab
 }
 
 void ConvertToBackendIR::postorder(const IR::P4Table *t) {
+  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(t).name() << std::endl;
     if (t != nullptr) {
         tableCount++;
         unsigned int tId = tableCount;

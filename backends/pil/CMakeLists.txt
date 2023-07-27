@@ -19,6 +19,7 @@ set(PIL_BACKEND_SOURCES
     backend.cpp
     pil.cpp
     version.cpp
+    pnaProgramStructure.cpp
     ../bmv2/common/programStructure.cpp
     ../bmv2/psa_switch/psaProgramStructure.cpp
     )
@@ -47,7 +48,7 @@ add_dependencies(p4c_driver linkpil)
 
 add_custom_target(pil_includes ALL
   COMMAND ${CMAKE_COMMAND} -E make_directory ${P4C_BINARY_DIR}/p4include/pil
-  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${P4C_SOURCE_DIR}/p4include/pna.p4 ${P4C_BINARY_DIR}/p4include/pil)
+  COMMAND ${CMAKE_COMMAND} -E copy_if_different ${P4C_SOURCE_DIR}/p4include/dpdk/pna.p4 ${P4C_BINARY_DIR}/p4include/pil)
 
 set(PIL_COMPILER_DRIVER "${CMAKE_CURRENT_SOURCE_DIR}/run-pil-test.py")
 
