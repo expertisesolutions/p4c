@@ -66,6 +66,7 @@ class ConvertToBackendIR : public Inspector {
     : tlb(tlb), tcPipeline(pipe), refMap(refMap), typeMap(typeMap), options(options) {}
     void setPipelineName();
     bool preorder(const IR::P4Program *p) override;
+    void postorder(const IR::P4Parser *a) override;
     void postorder(const IR::P4Action *a) override;
     void postorder(const IR::P4Table *t) override;
     void postorder(const IR::P4Program *p) override;

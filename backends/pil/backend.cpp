@@ -45,53 +45,38 @@ bool Backend::process() {
     // auto refMapEBPF = refMap;
     // auto typeMapEBPF = typeMap;
     //parseTCAnno = new ParseTCAnnotations();
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
     tcIR = new ConvertToBackendIR(toplevel, pipeline, refMap, typeMap, options);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
     //genIJ = new IntrospectionGenerator(pipeline, refMap, typeMap);
     addPasses({new P4::ResolveReferences(refMap),
                new P4::TypeInference(refMap, typeMap), tcIR});
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
     toplevel->getProgram()->apply(*this);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
     if (::errorCount() > 0) return false;
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
+
     //if (!ebpfCodeGen(refMapEBPF, typeMapEBPF)) return false;
 
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     auto main = toplevel->getMain();
     if (!main) return false;
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
 
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     PnaProgramStructure structure(refMap, typeMap);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     auto parsePnaArch = new ParsePnaArchitecture(&structure);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
 
     main->apply(*parsePnaArch);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     auto evaluator = new P4::EvaluatorPass(refMap, typeMap);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     auto program = toplevel->getProgram();
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
 
     //program = program->apply(rewriteToEBPF);
 
     // map IR node to compile-time allocated resource blocks.
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     toplevel->apply(*new BMV2::BuildResourceMap(&structure.resourceMap));
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
 
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     main = toplevel->getMain();
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     if (!main) return false;  // no main
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     main->apply(*parsePnaArch);
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
     program = toplevel->getProgram();
-    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << std::endl;
 
     return true;
 }
@@ -202,6 +187,7 @@ void ConvertToBackendIR::setPipelineName() {
 }
 
 bool ConvertToBackendIR::preorder(const IR::P4Program *p) {
+  std::cout << "p4program" << std::endl;
     if (p != nullptr) {
         setPipelineName();
         return true;
@@ -223,11 +209,38 @@ bool ConvertToBackendIR::isDuplicateOrNoAction(const IR::P4Action *action) {
     return false;
 }
 
+void ConvertToBackendIR::postorder(const IR::P4Parser *parser) {
+  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(parser).name() << std::endl;
+
+  for (auto s : parser->states) {
+    std::cout << std::endl << s << std::endl;;
+    if (s->selectExpression) {
+      if (auto * p = s->selectExpression->to<IR::PathExpression>()) {
+        std::cout << "path expression " << *s->selectExpression << std::endl;
+      }
+      if (auto * p = s->selectExpression->to<IR::SelectExpression>()) {
+        std::cout << "Select expression " << p->select << std::endl;
+
+        for (auto&& e : p->select->components) {
+          std::cout << "expression " << e << " " << typeid(*e).name() << " " << e->node_type_name() << std::endl;
+        }
+        
+      }
+      else {
+        std::cout << "unknown expression" << std::endl;
+        std::cout << *s->selectExpression << " " << typeid(*s->selectExpression).name() << std::endl;
+      }
+    }
+  }
+
+}
+
 void ConvertToBackendIR::postorder(const IR::P4Action *action) {
   std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(action).name() << std::endl;
     if (action != nullptr) {
         if (isDuplicateOrNoAction(action)) return;
         auto actionName = externalName(action);
+        std::cout << "Action name " << actionName << std::endl;
         actions.emplace(actionName, action);
         actionCount++;
         unsigned int actionId = actionCount;
@@ -239,6 +252,7 @@ void ConvertToBackendIR::postorder(const IR::P4Action *action) {
         if (paramList != nullptr && !paramList->empty()) {
             for (auto param : paramList->parameters) {
                 auto paramType = typeMap->getType(param);
+                std::cout << "Parameter type " << paramType << std::endl;
                 IR::PILActionParam *tcActionParam = new IR::PILActionParam();
                 tcActionParam->setParamName(param->name.originalName);
                 if (!paramType->is<IR::Type_Bits>()) {
@@ -397,6 +411,7 @@ void ConvertToBackendIR::postorder(const IR::P4Table *t) {
         tableCount++;
         unsigned int tId = tableCount;
         auto tName = t->name.originalName;
+        std::cout << "Table name " << t->name.originalName << std::endl;
         tableIDList.emplace(tId, tName);
         auto ctrl = findContext<IR::P4Control>();
         auto cName = ctrl->name.originalName;
