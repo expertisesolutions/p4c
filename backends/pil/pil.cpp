@@ -220,7 +220,8 @@ int main(int argc, char *const argv[]) {
     if (::errorCount() > 0) {
         return 1;
     }
-    if (!options.outputFile.isNullOrEmpty() || !options.cFile.isNullOrEmpty()) {
+    if (!options.outputFile.isNullOrEmpty() || !options.cFile.isNullOrEmpty() ||
+        !options.introspecFile.isNullOrEmpty()) {
         backend.serialize();
     }
     return ::errorCount() > 0;
