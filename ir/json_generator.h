@@ -23,6 +23,7 @@ limitations under the License.
 #include <unordered_set>
 
 #include "ir/node.h"
+#include "ir/json_parser.h"
 #include "lib/bitvec.h"
 #include "lib/cstring.h"
 #include "lib/indent.h"
@@ -284,6 +285,69 @@ class JSONGenerator {
             out << std::endl << --indent;
         }
         out << "]";
+    }
+
+    void generate(JsonData *json) {
+        if (auto *obj = json->to<JsonObject>()) {
+            generate(obj);
+        } else if (auto *vec = json->to<JsonVector>()) {
+            generate(vec);
+        } else if (auto *str = json->to<JsonString>()) {
+            generate(str);
+        } else if (auto *num = json->to<JsonNumber>()) {
+            generate(num);
+        } else if (auto *bool_ = json->to<JsonBoolean>()) {
+            generate(bool_);
+        } else if (auto *null = json->to<JsonNull>()) {
+            generate(null);
+        }
+    }
+
+    void generate(JsonObject *obj) {
+        out << "{";
+        if (obj->size() > 0) {
+            out << std::endl << ++indent;
+            auto it = obj->begin();
+            out << std::quoted(it->first) << " : ";
+            generate(it->second);
+            for (++it; it != obj->end(); ++it) {
+                out << "," << std::endl << indent;
+                out << std::quoted(it->first) << " : ";
+                generate(it->second);
+            }
+            out << std::endl << --indent;
+        }
+        out << "}";
+    }
+
+    void generate(JsonVector *vec) {
+        out << "[";
+        if (vec->size() > 0) {
+            out << std::endl << ++indent;
+            generate((*vec)[0]);
+            for (size_t i = 1, size = vec->size(); i < size; ++i) {
+                out << "," << std::endl << indent;
+                generate((*vec)[i]);
+            }
+            out << std::endl << --indent;
+        }
+        out << "]";
+    }
+
+    void generate(JsonString *str) {
+        generate(static_cast<cstring>(*str));
+    }
+
+    void generate(JsonNumber *num) {
+        out << num->val;
+    }
+
+    void generate(JsonBoolean *bool_) {
+        generate(bool_->val);
+    }
+
+    void generate(JsonNull *) {
+        out << "null";
     }
 
     JSONGenerator &operator<<(char ch) {
