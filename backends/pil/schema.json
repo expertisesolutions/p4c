@@ -1,0 +1,1322 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$defs": {
+    "key": {
+      "oneOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "string",
+          "pattern": "^0x([0-9]|[a-f])+$"
+        }
+      ]
+    },
+    "mask": {
+      "type": "string",
+      "pattern": "^0x([0-9]|[a-f])+$"
+    },
+    "inline_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "node"],
+        "properties": {
+          "key": {
+            "title": "Key",
+            "$ref": "#/$defs/key"
+          },
+          "node": {
+            "title": "Node",
+            "type": "string",
+            "pattern": "^.*$"
+          },
+          "encap": {
+            "title": "Encap",
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "inline_tlv_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["key", "node"],
+        "properties": {
+          "key": {
+            "title": "Key",
+            "$ref": "#/$defs/key"
+          },
+          "node": {
+            "title": "Node",
+            "type": "string",
+            "pattern": "^.*$"
+          }
+        }
+      }
+    },
+    "inline_flags_table": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["flag"],
+        "properties": {
+          "flag": {
+            "title": "Key",
+            "$ref": "#/$defs/key"
+          },
+          "field-len": {
+            "type": "integer",
+            "default": 2
+          },
+          "mask": {
+            "title": "Mask",
+            "$ref": "#/$defs/mask"
+          }
+        },
+        "anyOf": [
+          {
+            "required": ["node"],
+            "properties": {
+              "node": {
+                "title": "Node",
+                "type": "string",
+                "pattern": "^.*$"
+              }
+            }
+          },
+          {
+            "required": ["name"],
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string",
+                "pattern": "^.*$"
+              },
+              "min-hdr-length": {
+                "$id": "#root/tlv-nodes/items/min-hdr-length",
+                "title": "Min_hdr_length",
+                "type": "integer",
+                "default": 0
+              }
+            },
+            "allOf": [
+              { "$ref": "#/$defs/metadata_node" },
+              { "$ref": "#/$defs/cond_expr_node" },
+              { "$ref": "#/$defs/counter_action_node" }
+            ]
+          }
+        ]
+      }
+    },
+    "extract_metadata": {
+      "type": "object",
+      "required": ["type", "hdr-src-off", "md-off"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "pattern": "^.*$"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "enum": ["extract", "bit_offset", "offset"]
+        },
+        "is-frame": {
+          "title": "Is_frame",
+          "type": "boolean",
+          "default": false
+        },
+        "length": {
+          "title": "Length",
+          "type": "integer",
+          "default": 2
+        },
+        "hdr-src-off": {
+          "title": "Hdr_src_off",
+          "type": "integer"
+        },
+        "md-off": {
+          "title": "Md_off",
+          "type": "integer"
+        },
+        "endian-swap": {
+          "title": "Endian_swap",
+          "type": "boolean",
+          "default": false
+        },
+        "mask": {
+          "title": "Mask",
+          "$ref": "#/$defs/mask"
+        },
+        "right-shift": {
+          "title": "Right_shift",
+          "type": "integer"
+        },
+        "index": {
+          "type": "string",
+          "pattern": "^.*$"
+        }
+      }
+    },
+    "constant_metadata": {
+      "type": "object",
+      "required": ["type", "value", "md-off"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "pattern": "^.*$"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "const": "constant"
+        },
+        "is-frame": {
+          "title": "Is_frame",
+          "type": "boolean",
+          "default": false
+        },
+        "length": {
+          "title": "Length",
+          "type": "integer",
+          "default": 2
+        },
+        "value": {
+          "title": "value",
+          "type": "integer"
+        },
+        "md-off": {
+          "title": "Md_off",
+          "type": "integer"
+        },
+        "index": {
+          "type": "string",
+          "pattern": "^.*$"
+        }
+      }
+    },
+    "value_metadata": {
+      "type": "object",
+      "required": ["type", "md-off"],
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "pattern": "^.*$"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "enum": [
+            "hdr_length",
+            "num_encaps",
+            "num_nodes",
+            "timestamp",
+            "return_code",
+            "counter"
+          ]
+        },
+        "is-frame": {
+          "title": "Is_frame",
+          "type": "boolean",
+          "default": false
+        },
+        "length": {
+          "title": "Length",
+          "type": "integer",
+          "default": 2
+        },
+        "md-off": {
+          "title": "Md_off",
+          "type": "integer"
+        },
+        "index": {
+          "type": "string",
+          "pattern": "^.*$"
+        }
+      },
+      "if": {
+        "properties": {
+          "type": {
+            "const": "counter"
+          }
+        }
+      },
+      "then": {
+        "required": ["counter"],
+        "properties": {
+          "counter": {
+            "title": "Counter",
+            "type": "string",
+            "pattern": "^.+$"
+          }
+        }
+      }
+    },
+    "metadata_node": {
+      "type": "object",
+      "properties": {
+        "metadata": {
+          "title": "Metadata",
+          "type": "object",
+          "properties": {
+            "list": {
+              "$id": "#root/parse-nodes/items/metadata/table",
+              "title": "List",
+              "type": "string",
+              "default": "",
+              "pattern": "^.*$"
+            },
+            "ents": {
+              "$id": "#root/parse-nodes/items/metadata/ents",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "oneOf": [
+                  { "$ref": "#/$defs/extract_metadata" },
+                  { "$ref": "#/$defs/constant_metadata" },
+                  { "$ref": "#/$defs/value_metadata" }
+                ]
+              }
+            }
+          },
+          "oneOf": [{ "required": ["list"] }, { "required": ["ents"] }]
+        }
+      }
+    },
+    "cond_op": {
+      "type": "object",
+      "required": ["type", "field-off", "field-len", "value"],
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "pattern": "^.*$"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "pattern": "^((not_)?equal)|((greater)|(less)(_than)|(_or_equal))$",
+          "default": "equal"
+        },
+        "field-off": {
+          "title": "Field_off",
+          "type": "integer"
+        },
+        "field-len": {
+          "title": "Field_len",
+          "type": "integer",
+          "default": 2
+        },
+        "mask": {
+          "title": "Mask",
+          "$ref": "#/$defs/mask"
+        },
+        "value": {
+          "title": "value",
+          "type": "integer"
+        }
+      }
+    },
+    "cond_expr": {
+      "type": "object",
+      "required": ["type", "ents"],
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "pattern": "^.*$"
+        },
+        "type": {
+          "title": "Type",
+          "type": "string",
+          "pattern": "^(and)|(or)$",
+          "default": "or"
+        },
+        "default-fail": {
+          "title": "Default_fail",
+          "type": "string",
+          "pattern": "^stop_(okay|fail|node|sub)$",
+          "default": "stop_fail"
+        },
+        "ents": {
+          "title": "Ents",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "oneOf": [
+              { "$ref": "#/$defs/cond_op" },
+              { "$ref": "#/$defs/cond_expr" }
+            ]
+          }
+        }
+      }
+    },
+    "base_cond_expr": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "title": "Name",
+          "type": "string",
+          "pattern": "^.*$"
+        },
+        "default-fail": {
+          "title": "Default_fail",
+          "type": "string",
+          "pattern": "^stop_(okay|fail|node|sub)$",
+          "default": "stop_fail"
+        },
+        "ents": {
+          "title": "Ents",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "oneOf": [
+              { "$ref": "#/$defs/cond_op" },
+              { "$ref": "#/$defs/cond_expr" }
+            ]
+          }
+        }
+      }
+    },
+    "cond_expr_node": {
+      "type": "object",
+      "properties": {
+        "cond-exprs": {
+          "title": "Cond_exprs",
+          "type": "object",
+          "properties": {
+            "list": {
+              "$id": "#root/parse-nodes/items/metadata/table",
+              "title": "List",
+              "type": "string",
+              "default": "",
+              "pattern": "^.*$"
+            },
+            "ents": {
+              "$id": "#root/parse-nodes/items/metadata/ents",
+              "type": "array",
+              "items": {
+                "type": "object",
+                "$ref": "#/$defs/base_cond_expr"
+              }
+            }
+          },
+          "oneOf": [{ "required": ["list"] }, { "required": ["ents"] }]
+        }
+      }
+    },
+    "counter_action_node": {
+      "type": "object",
+      "properties": {
+        "counter-actions": {
+          "type": "array",
+          "items": {
+            "title": "Items",
+            "type": "object",
+            "required": ["name", "type"],
+            "properties": {
+              "name": {
+                "title": "Name",
+                "type": "string",
+                "pattern": "^.*$"
+              },
+              "type": {
+                "title": "Type",
+                "type": "string",
+                "pattern": "^(pre|post)_metadata_(inc|reset)$"
+              }
+            }
+          }
+        }
+      },
+      "$ref": "#/$defs/metadata_node"
+    }
+  },
+  "$id": "https://example.com/object1663074647.json",
+  "title": "Root",
+  "type": "object",
+  "required": ["parsers", "parse-nodes", "proto-tables"],
+  "additionalProperties": false,
+  "properties": {
+    "parsers": {
+      "$id": "#root/parsers",
+      "title": "Parsers",
+      "type": "array",
+      "items": {
+        "$id": "#root/parsers/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name", "root-node"],
+        "properties": {
+          "name": {
+            "$id": "#root/parsers/items/name",
+            "title": "Name",
+            "type": "string",
+            "pattern": "^.*$"
+          },
+          "root-node": {
+            "$id": "#root/parsers/items/root-node",
+            "title": "Root_node",
+            "type": "string",
+            "pattern": "^.*$"
+          },
+          "okay-target": {
+            "$id": "#root/parsers/items/okay-target",
+            "title": "Okay_target",
+            "type": "string",
+            "pattern": "^.*$"
+          },
+          "fail-target": {
+            "$id": "#root/parsers/items/fail-target",
+            "title": "Fail_target",
+            "type": "string",
+            "pattern": "^.*$"
+          },
+          "encap-target": {
+            "$id": "#root/parsers/items/encap-target",
+            "title": "Encap_target",
+            "type": "string",
+            "pattern": "^.*$"
+          },
+          "max-nodes": {
+            "$id": "#root/parser/items/max-nodes",
+            "title": "Max_nodes",
+            "type": "integer"
+          },
+          "max-encaps": {
+            "$id": "#root/parser/items/max-encaps",
+            "title": "Max_encaps",
+            "type": "integer"
+          },
+          "max-frames": {
+            "$id": "#root/parser/items/max-frames",
+            "title": "Max_frames",
+            "type": "integer"
+          },
+          "metameta-size": {
+            "$id": "#root/parser/items/metameta-size",
+            "title": "Metameta_size",
+            "type": "integer"
+          },
+          "frame-size": {
+            "$id": "#root/parser/items/frame-size",
+            "title": "Frame_size",
+            "type": "integer"
+          },
+          "flags": {
+            "$id": "#root/parser/items/flags",
+            "title": "Flags",
+            "type": "integer"
+          }
+        }
+      }
+    },
+    "parse-nodes": {
+      "$id": "#root/parse-nodes",
+      "title": "Parse_nodes",
+      "type": "array",
+      "items": {
+        "$id": "#root/parse-nodes/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "$id": "#root/parse-nodes/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "min-hdr-length": {
+            "$id": "#root/parse-nodes/items/min-hdr-length",
+            "title": "Min_hdr_length",
+            "type": "integer",
+            "default": 0
+          },
+          "overlay": {
+            "$id": "#root/parse-nodes/items/overlay",
+            "title": "Overlay",
+            "type": "boolean",
+            "default": false
+          },
+          "hdr-length": {
+            "$id": "#root/parse-nodes/items/hdr-length",
+            "title": "Hdr_Length",
+            "type": "object",
+            "required": ["field-off", "field-len"],
+            "properties": {
+              "field-off": {
+                "$id": "#root/parse-nodes/items/hdr-length/field-off",
+                "title": "Field_off",
+                "type": "integer",
+                "default": 0
+              },
+              "field-len": {
+                "$id": "#root/parse-nodes/items/hdr-length/field-len",
+                "title": "Field_len",
+                "type": "integer",
+                "default": 0
+              },
+              "endian-swap": {
+                "$id": "#root/parse-nodes/items/hdr-length/endian-swap",
+                "title": "Endian_swap",
+                "type": "boolean",
+                "default": false
+              },
+              "mask": {
+                "$id": "#root/parse-nodes/items/hdr-length/mask",
+                "title": "Mask",
+                "$ref": "#/$defs/mask"
+              },
+              "add": {
+                "$id": "#root/parse-nodes/items/hdr-length/add",
+                "title": "Add",
+                "type": "integer",
+                "default": 0
+              },
+              "multiplier": {
+                "$id": "#root/parse-nodes/items/hdr-length/multiplier",
+                "title": "Multiplier",
+                "type": "integer",
+                "default": 1,
+                "multipleOf": 2
+              },
+              "right-shift": {
+                "title": "Right_shift",
+                "type": "integer"
+              }
+            }
+          },
+          "next-node": {
+            "$id": "#root/parse-nodes/items/next-node",
+            "title": "Next_node",
+            "type": "string"
+          },
+          "next-proto": {
+            "$id": "#root/parse-nodes/items/next-proto",
+            "title": "Next_proto",
+            "type": "object",
+            "required": ["field-off", "field-len"],
+            "additionalProperties": false,
+            "properties": {
+              "field-off": {
+                "title": "Field_off",
+                "type": "integer",
+                "default": 0
+              },
+              "field-len": {
+                "title": "Field_len",
+                "type": "integer",
+                "default": 2
+              },
+              "mask": {
+                "title": "Mask",
+                "$ref": "#/$defs/mask"
+              },
+              "default": {
+                "title": "default",
+                "type": "string",
+                "enum": [
+                  "continue",
+                  "wild",
+                  "alt_wild",
+                  "stop_okay",
+                  "stop_node_okay",
+                  "stop_fail"
+                ],
+                "default": "continue"
+              },
+              "wildcard-node": {
+                "title": "Wildcard_node",
+                "type": "string",
+                "pattern": "^.*$"
+              },
+              "encap": {
+                "title": "Encap",
+                "type": "boolean"
+              },
+              "right-shift": {
+                "title": "Right_shift",
+                "type": "integer"
+              },
+              "table": {
+                "title": "Table",
+                "type": "string",
+                "default": "",
+                "pattern": "^.*$"
+              },
+              "ents": {
+                "$ref": "#/$defs/inline_table"
+              }
+            },
+            "oneOf": [{ "required": ["table"] }, { "required": ["ents"] }]
+          },
+          "tlvs-parse-node": {
+            "$id": "#root/parse-nodes/items/tlvs-parse-node",
+            "title": "Tlv_parse_node",
+            "type": "object",
+            "required": ["tlv-type", "tlv-length"],
+            "properties": {
+              "tlv-type": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-type",
+                "title": "Tlv_type",
+                "type": "object",
+                "required": ["field-off", "field-len"],
+                "properties": {
+                  "field-off": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-type/field-off",
+                    "title": "Offset",
+                    "type": "integer"
+                  },
+                  "field-len": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-type/field-len",
+                    "title": "Length",
+                    "type": "integer"
+                  },
+                  "mask": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-type/mask",
+                    "title": "Mask",
+                    "$ref": "#/$defs/mask"
+                  },
+                  "right-shift": {
+                    "title": "Right_shift",
+                    "type": "integer"
+                  }
+                }
+              },
+              "tlv-length": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-length",
+                "title": "Tlv_length",
+                "type": "object",
+                "required": ["field-off", "field-len"],
+                "properties": {
+                  "field-off": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-length/field-off",
+                    "title": "Offset",
+                    "type": "integer"
+                  },
+                  "field-len": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-length/field-len",
+                    "title": "Length",
+                    "type": "integer"
+                  },
+                  "mask": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-length/mask",
+                    "title": "Mask",
+                    "$ref": "#/$defs/mask"
+                  },
+                  "add": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-length/add",
+                    "title": "Add",
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "multiplier": {
+                    "$id": "#root/parse-nodes/items/tlvs-parse-node/tlv-length/multiplier",
+                    "title": "Multiplier",
+                    "type": "integer",
+                    "default": 1,
+                    "multipleOf": 2
+                  },
+                  "endian-swap": {
+                    "title": "Endian_swap",
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "right-shift": {
+                    "title": "Right_shift",
+                    "type": "integer"
+                  }
+                }
+              },
+              "data-offset": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/data-offset",
+                "title": "Data_offset",
+                "type": "integer"
+              },
+              "start-offset": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset",
+                "title": "Start_offset",
+                "oneOf": [
+                  {
+                    "type": "integer"
+                  },
+                  {
+                    "type": "object",
+                    "required": ["field-off", "field-len"],
+                    "properties": {
+                      "field-off": {
+                        "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset/field-off",
+                        "title": "Offset",
+                        "type": "integer"
+                      },
+                      "field-len": {
+                        "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset/field-len",
+                        "title": "Length",
+                        "type": "integer"
+                      },
+                      "endian-swap": {
+                        "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset/endian-swap",
+                        "title": "Endian_swap",
+                        "type": "boolean",
+                        "default": false
+                      },
+                      "mask": {
+                        "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset/mask",
+                        "title": "Mask",
+                        "$ref": "#/$defs/mask"
+                      },
+                      "add": {
+                        "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset/add",
+                        "title": "Add",
+                        "type": "integer",
+                        "default": 0
+                      },
+                      "multiplier": {
+                        "$id": "#root/parse-nodes/items/tlvs-parse-node/start-offset/multiplier",
+                        "title": "Multiplier",
+                        "type": "integer",
+                        "default": 1,
+                        "multipleOf": 2
+                      }
+                    }
+                  }
+                ]
+              },
+              "pad1": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/pad1",
+                "title": "Pad1",
+                "type": "integer"
+              },
+              "padn": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/padn",
+                "title": "Padn",
+                "type": "integer"
+              },
+              "eol": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/eol",
+                "title": "Eol",
+                "type": "integer"
+              },
+              "min-hdr-length": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/min-hdr-length",
+                "title": "Min_hdr_length",
+                "type": "integer",
+                "default": 0
+              },
+              "default": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/default",
+                "title": "default",
+                "type": "string",
+                "enum": [
+                  "continue",
+                  "wild",
+                  "alt_wild",
+                  "stop_okay",
+                  "stop_node_okay",
+                  "stop_sub_node_okay",
+                  "stop_fail"
+                ],
+                "default": "continue"
+              },
+              "wildcard-node": {
+                "title": "Wildcard_node",
+                "type": "string",
+                "pattern": "^.*$"
+              },
+              "table": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/table",
+                "title": "Table",
+                "type": "string",
+                "default": "",
+                "pattern": "^.*$"
+              },
+              "ents": {
+                "$id": "#root/parse-nodes/items/tlvs-parse-node/ents",
+                "$ref": "#/$defs/inline_tlv_table"
+              },
+              "max-tlvs": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/max-tlvs",
+                "title": "Max_tlvs",
+                "type": "integer"
+              },
+              "max-non-padding": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/max-non-padding",
+                "title": "Max_tlvs",
+                "type": "integer"
+              },
+              "max-padding-length": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/max-padding-length",
+                "title": "Max_tlvs",
+                "type": "integer"
+              },
+              "max-consecutive-padding": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/max-consecutive-padding",
+                "title": "Max_tlvs",
+                "type": "integer"
+              },
+              "disp-limit-exceeded": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/disp-limit-exceeded",
+                "title": "Disp_limit_exceeded",
+                "type": "string",
+                "enum": [
+                  "stop_okay",
+                  "stop_node_okay",
+                  "stop_sub_node_okay",
+                  "stop_fail"
+                ]
+              },
+              "loop-count-exceeded-is-err": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/loop-count-exceeded-is-err",
+                "title": "Loop_count_exceeded_is_err",
+                "type": "boolean"
+              }
+            },
+            "oneOf": [{ "required": ["table"] }, { "required": ["ents"] }]
+          },
+          "flag-fields-parse-node": {
+            "$id": "#root/parse-nodes/items/flag-fields-parse-node",
+            "title": "Flag_fields_parse_node",
+            "type": "object",
+            "required": ["flags-offset", "flags-length"],
+            "properties": {
+              "flags-offset": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/flags-offset",
+                "title": "Flags_offset",
+                "type": "integer"
+              },
+              "flags-length": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/flags-length",
+                "title": "Flags_length",
+                "type": "integer"
+              },
+              "flags-mask": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/flags-mask",
+                "title": "Flags_mask",
+                "$ref": "#/$defs/mask"
+              },
+              "flags-reverse-order": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/flags-reverse-order",
+                "title": "Flags_reverse_order",
+                "type": "boolean"
+              },
+              "default": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/default",
+                "title": "default",
+                "type": "string",
+                "enum": [
+                  "continue",
+                  "wild",
+                  "alt_wild",
+                  "stop_okay",
+                  "stop_node_okay",
+                  "stop_sub_node_okay",
+                  "stop_fail"
+                ],
+                "default": "continue"
+              },
+              "fields-start-offset": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset",
+                "title": "Fields_start_offset",
+                "type": "object",
+                "properties": {
+                  "field-off": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/field-off",
+                    "title": "Offset",
+                    "type": "integer"
+                  },
+                  "field-len": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/field-len",
+                    "title": "Length",
+                    "type": "integer"
+                  },
+                  "endian-swap": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/endian-swap",
+                    "title": "Endian_swap",
+                    "type": "boolean",
+                    "default": false
+                  },
+                  "mask": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/mask",
+                    "title": "Mask",
+                    "$ref": "#/$defs/mask"
+                  },
+                  "right-shift": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/right-shift",
+                    "title": "Right_shift",
+                    "type": "integer"
+                  },
+                  "add": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/add",
+                    "title": "Add",
+                    "type": "integer",
+                    "default": 0
+                  },
+                  "multiplier": {
+                    "$id": "#root/parse-nodes/items/flag-fields-parse-node/fields-start-offset/multiplier",
+                    "title": "Multiplier",
+                    "type": "integer",
+                    "default": 1,
+                    "multipleOf": 2
+                  }
+                }
+              },
+              "table": {
+                "$id": "#root/parse-nodes/items/flag-fields-parse-node/table",
+                "title": "Table",
+                "type": "string",
+                "default": "",
+                "pattern": "^.*$"
+              },
+              "ents": {
+                "$ref": "#/$defs/inline_flags_table"
+              }
+            },
+            "oneOf": [{ "required": ["table"] }, { "required": ["ents"] }]
+          }
+        },
+        "allOf": [
+          { "$ref": "#/$defs/metadata_node" },
+          { "$ref": "#/$defs/cond_expr_node" },
+          { "$ref": "#/$defs/counter_action_node" }
+        ]
+      }
+    },
+    "proto-tables": {
+      "$id": "#root/proto-tables",
+      "title": "Proto_tables",
+      "type": "array",
+      "items": {
+        "$id": "#root/proto-tables/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name", "ents"],
+        "properties": {
+          "name": {
+            "$id": "#root/proto-tables/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "ents": {
+            "$id": "#root/proto-tables/items/ents",
+            "title": "Ents",
+            "$ref": "#/$defs/inline_table"
+          }
+        }
+      }
+    },
+    "tlv-tables": {
+      "$id": "#root/tlv-tables",
+      "title": "Proto_tables",
+      "type": "array",
+      "items": {
+        "$id": "#root/tlv-tables/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name", "ents"],
+        "properties": {
+          "name": {
+            "$id": "#root/tlv-tables/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "ents": {
+            "$id": "#root/tlv-tables/items/ents",
+            "title": "Ents",
+            "$ref": "#/$defs/inline_tlv_table"
+          }
+        }
+      }
+    },
+    "tlv-nodes": {
+      "$id": "#root/tlv-nodes",
+      "title": "Tlv_nodes",
+      "type": "array",
+      "items": {
+        "$id": "#root/tlv-nodes/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "$id": "#root/tlv-nodes/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "min-hdr-length": {
+            "$id": "#root/tlv-nodes/items/min-hdr-length",
+            "title": "Min_hdr_length",
+            "type": "integer",
+            "default": 0
+          },
+          "overlay-node": {
+            "$id": "#root/tlv-nodes/items/next-proto",
+            "title": "Overlay_node",
+            "type": "object",
+            "required": ["field-off", "field-len"],
+            "additionalProperties": false,
+            "properties": {
+              "field-off": {
+                "title": "Field_off",
+                "type": "integer",
+                "default": 0
+              },
+              "field-len": {
+                "title": "Field_len",
+                "type": "integer",
+                "default": 2
+              },
+              "mask": {
+                "title": "Mask",
+                "$ref": "#/$defs/mask"
+              },
+              "default": {
+                "title": "default",
+                "type": "string",
+                "enum": [
+                  "continue",
+                  "wild",
+                  "alt_wild",
+                  "stop_okay",
+                  "stop_node_okay",
+                  "stop_sub_node_okay",
+                  "stop_fail"
+                ],
+                "default": "continue"
+              },
+              "wildcard-node": {
+                "title": "Wildcard_node",
+                "type": "string",
+                "pattern": "^.*$"
+              },
+              "right-shift": {
+                "title": "Right_shift",
+                "type": "integer"
+              },
+              "table": {
+                "title": "Table",
+                "type": "string",
+                "default": "",
+                "pattern": "^.*$"
+              },
+              "ents": {
+                "$ref": "#/$defs/inline_table"
+              }
+            },
+            "oneOf": [{ "required": ["table"] }, { "required": ["ents"] }]
+          },
+          "max-len": {
+            "title": "Max_len",
+            "type": "integer"
+          },
+          "is-padding": {
+            "title": "Is_padding",
+            "type": "boolean"
+          }
+        },
+        "allOf": [
+          { "$ref": "#/$defs/metadata_node" },
+          { "$ref": "#/$defs/cond_expr_node" },
+          { "$ref": "#/$defs/counter_action_node" }
+        ]
+      }
+    },
+    "flag-fields-tables": {
+      "$id": "#root/flag-fields-tables",
+      "title": "Flag_fields_tables",
+      "type": "array",
+      "items": {
+        "$id": "#root/flag-fields-tables/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name", "ents"],
+        "properties": {
+          "name": {
+            "$id": "#root/flag-fields-tables/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "ents": {
+            "$id": "#root/flag-fields-tables/items/ents",
+            "title": "Ents",
+            "$ref": "#/$defs/inline_flags_table"
+          }
+        }
+      }
+    },
+    "flag-fields-nodes": {
+      "$id": "#root/flag-fields-nodes",
+      "title": "Flag_fields_nodes",
+      "type": "array",
+      "items": {
+        "$id": "#root/flag-fields-nodes/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "$id": "#root/flag-fields-nodes/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          }
+        },
+        "allOf": [
+          { "$ref": "#/$defs/metadata_node" },
+          { "$ref": "#/$defs/cond_expr_node" },
+          { "$ref": "#/$defs/counter_action_node" }
+        ]
+      }
+    },
+    "metadata-list": {
+      "$id": "#root/metadata-list",
+      "title": "Metadata_list",
+      "type": "array",
+      "items": {
+        "$id": "#root/metadata-list/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "$id": "#root/metadata-list/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "list": {
+            "$id": "#root/metadata-list/items/list",
+            "title": "List",
+            "type": "array",
+            "default": [],
+            "items": {
+              "$id": "#root/metadata-list/items/list/items",
+              "title": "Items",
+              "type": "string",
+              "default": "",
+              "pattern": "^.*$"
+            }
+          },
+          "ents": {
+            "$id": "#root/metadata-list/items/ents",
+            "type": "array",
+            "items": {
+              "$id": "#root/metadata-list/items/ents/items",
+              "type": "object",
+              "oneOf": [
+                { "$ref": "#/$defs/extract_metadata" },
+                { "$ref": "#/$defs/constant_metadata" },
+                { "$ref": "#/$defs/value_metadata" }
+              ]
+            }
+          }
+        },
+        "oneOf": [{ "required": ["list"] }, { "required": ["ents"] }]
+      }
+    },
+    "metadata-objects": {
+      "$id": "#root/metadata-objects",
+      "title": "Metadata_objects",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$id": "#root/metadata-objects/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name"],
+        "type": "object",
+        "oneOf": [
+          { "$ref": "#/$defs/extract_metadata" },
+          { "$ref": "#/$defs/constant_metadata" },
+          { "$ref": "#/$defs/value_metadata" }
+        ]
+      }
+    },
+    "cond-exprs-list": {
+      "$id": "#root/cond-exprs-list",
+      "title": "Cond_exprs_list",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$id": "#root/cond-exprs-list/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name"],
+        "$ref": "#/$defs/base_cond_expr"
+      }
+    },
+    "counters": {
+      "$id": "#root/counters",
+      "title": "Counters",
+      "type": "array",
+      "default": [],
+      "items": {
+        "$id": "#root/counters/items",
+        "title": "Items",
+        "type": "object",
+        "required": ["name", "element-size", "num-elements"],
+        "properties": {
+          "name": {
+            "$id": "#root/counters/items/name",
+            "title": "Name",
+            "type": "string",
+            "default": "",
+            "pattern": "^.*$"
+          },
+          "element-size": {
+            "$id": "#root/counters/items/element-size",
+            "title": "Element_size",
+            "type": "integer"
+          },
+          "num-elements": {
+            "$id": "#root/counters/items/num-elements",
+            "title": "Num_elements",
+            "type": "integer"
+          },
+          "reset-at-encap": {
+            "$id": "#root/counters/items/reset-at-encap",
+            "title": "Reset_at_encap",
+            "type": "boolean",
+            "default": true
+          },
+          "error-exceeded": {
+            "$id": "#root/counters/items/error_exceeded",
+            "title": "Error_exceeded",
+            "type": "boolean",
+            "default": true
+          },
+          "overwritable": {
+            "$id": "#root/counters/items/overwritable",
+            "title": "Overwritable",
+            "type": "boolean",
+            "default": true
+          },
+          "array-limit": {
+            "$id": "#root/counters/items/array_limit",
+            "title": "Array_limit",
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}
