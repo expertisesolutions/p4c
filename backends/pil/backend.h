@@ -24,11 +24,14 @@ and limitations under the License.
 #include "frontends/p4/parserCallGraph.h"
 // #include "introspection.h"
 #include "ir/ir.h"
+#include "ir/json_parser.h"
 #include "lib/error.h"
 #include "lib/nullstream.h"
 #include "options.h"
 #include "pnaProgramStructure.h"
-//#include "tcAnnotations.h"
+// #include "tcAnnotations.h"
+#include <boost/graph/adjacency_list.hpp>
+
 #include "pil_defines.h"
 
 namespace PIL {
@@ -43,6 +46,10 @@ class PNAEbpfGenerator;
  * Backend code generation from midend IR
  */
 class ConvertToBackendIR : public Inspector {
+    // using graph_t = boost::adjacency_list<boost::listS, boost::vecS, boost::directedS,
+    //                                       boost::property<boost::vertex_name_t, std::string>,
+    //                                       boost::property<boost::edge_name_t, std::string>>;
+
  public:
     const IR::ToplevelBlock *tlb;
     IR::PILPipeline *tcPipeline;
@@ -59,11 +66,15 @@ class ConvertToBackendIR : public Inspector {
     ordered_map<unsigned, cstring> tableIDList;
     ordered_map<unsigned, cstring> actionIDList;
     ordered_map<unsigned, unsigned> tableKeysizeList;
+    ordered_map<cstring, std::pair<cstring, int>> stateExtracts;
+    ordered_map<cstring, std::tuple<cstring, int, int>> selectExpressions;
+    ordered_map<cstring, std::vector<std::pair<cstring, big_int>>> stateMap;
+
 
  public:
-  ConvertToBackendIR(const IR::ToplevelBlock *tlb, IR::PILPipeline *pipe, P4::ReferenceMap *refMap,
-                       P4::TypeMap *typeMap, PILOptions &options)
-    : tlb(tlb), tcPipeline(pipe), refMap(refMap), typeMap(typeMap), options(options) {}
+    ConvertToBackendIR(const IR::ToplevelBlock *tlb, IR::PILPipeline *pipe,
+                       P4::ReferenceMap *refMap, P4::TypeMap *typeMap, PILOptions &options)
+        : tlb(tlb), tcPipeline(pipe), refMap(refMap), typeMap(typeMap), options(options) {}
     void setPipelineName();
     bool preorder(const IR::P4Program *p) override;
     void postorder(const IR::P4Parser *a) override;
@@ -94,24 +105,26 @@ class Backend : public PassManager {
     PILOptions &options;
     IR::PILPipeline *pipeline = new IR::PILPipeline();
     PIL::ConvertToBackendIR *tcIR;
-  //PIL::IntrospectionGenerator *genIJ;
-  //PIL::ParsePILAnnotations *parsePILAnno;
+    // PIL::IntrospectionGenerator *genIJ;
+    // PIL::ParsePILAnnotations *parsePILAnno;
     const IR::ToplevelBlock *top = nullptr;
-  //EbpfOptions ebpfOption;
+    // EbpfOptions ebpfOption;
     EBPF::Target *target;
     const PNAEbpfGenerator *ebpf_program;
 
  public:
     explicit Backend(const IR::ToplevelBlock *toplevel, P4::ReferenceMap *refMap,
                      P4::TypeMap *typeMap, PILOptions &options)
-      : toplevel(toplevel), refMap(refMap), typeMap(typeMap), options(options) {
+        : toplevel(toplevel), refMap(refMap), typeMap(typeMap), options(options) {
         setName("BackEnd");
     }
     bool process();
     bool ebpfCodeGen(P4::ReferenceMap *refMap, P4::TypeMap *typeMap);
     void serialize() const;
-  //bool serializeIntrospectionJson(std::ostream &out) const;
+    // bool serializeIntrospectionJson(std::ostream &out) const;
     bool emitCFile();
+ private:
+   JsonData *toJson() const;
 };
 
 }  // namespace PIL

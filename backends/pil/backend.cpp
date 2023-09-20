@@ -22,8 +22,8 @@ and limitations under the License.
 
 namespace PIL {
 
-  //const cstring Extern::dropPacket = "drop_packet";
-  //const cstring Extern::sendToPort = "send_to_port";
+// const cstring Extern::dropPacket = "drop_packet";
+// const cstring Extern::sendToPort = "send_to_port";
 
 cstring pnaMainParserInputMetaFields[PIL::MAX_PNA_PARSER_META] = {"recirculated", "input_port"};
 
@@ -36,6 +36,16 @@ const cstring pnaParserMeta = "pna_main_parser_input_metadata_t";
 const cstring pnaInputMeta = "pna_main_input_metadata_t";
 const cstring pnaOutputMeta = "pna_main_output_metadata_t";
 
+template <typename T1, typename T2>
+std::ostream &operator<<(std::ostream &os, const std::pair<T1, T2> &p) {
+    return os << "(" << p.first << ", " << p.second << ")";
+}
+
+template <typename T1, typename T2, typename T3>
+std::ostream &operator<<(std::ostream &os, const std::tuple<T1, T2, T3> &p) {
+    return os << "(" << std::get<0>(p) << ", " << std::get<1>(p) << ", " << std::get<2>(p) << ")";
+}
+
 bool Backend::process() {
     CHECK_NULL(toplevel);
     if (toplevel->getMain() == nullptr) {
@@ -44,19 +54,35 @@ bool Backend::process() {
     }
     // auto refMapEBPF = refMap;
     // auto typeMapEBPF = typeMap;
-    //parseTCAnno = new ParseTCAnnotations();
+    // parseTCAnno = new ParseTCAnnotations();
 
     tcIR = new ConvertToBackendIR(toplevel, pipeline, refMap, typeMap, options);
 
-    //genIJ = new IntrospectionGenerator(pipeline, refMap, typeMap);
-    addPasses({new P4::ResolveReferences(refMap),
-               new P4::TypeInference(refMap, typeMap), tcIR});
+    // genIJ = new IntrospectionGenerator(pipeline, refMap, typeMap);
+    addPasses({new P4::ResolveReferences(refMap), new P4::TypeInference(refMap, typeMap), tcIR});
 
     toplevel->getProgram()->apply(*this);
 
+    for (auto &&[state, argAndType] : tcIR->stateExtracts) {
+        std::cout << "(state, v): (" << state << ", " << argAndType << ")" << std::endl;
+    }
+
+    for (auto &&[state, nextStates] : tcIR->stateMap) {
+        std::cout << "(state, nextStates): (" << state << ", [";
+        for (auto &&ns : nextStates) {
+            std::cout << ns << ",";
+        }
+        std::cout << "])" << std::endl;
+    }
+
+    for (auto &&[state, typeAndOffset] : tcIR->selectExpressions) {
+        std::cout << "(state, typeAndOffset): (" << state << ", " << typeAndOffset << ")"
+                  << std::endl;
+    }
+
     if (::errorCount() > 0) return false;
 
-    //if (!ebpfCodeGen(refMapEBPF, typeMapEBPF)) return false;
+    // if (!ebpfCodeGen(refMapEBPF, typeMapEBPF)) return false;
 
     auto main = toplevel->getMain();
     if (!main) return false;
@@ -65,10 +91,10 @@ bool Backend::process() {
     auto parsePnaArch = new ParsePnaArchitecture(&structure);
 
     main->apply(*parsePnaArch);
-    auto evaluator = new P4::EvaluatorPass(refMap, typeMap);
+    // auto evaluator = new P4::EvaluatorPass(refMap, typeMap);
     auto program = toplevel->getProgram();
 
-    //program = program->apply(rewriteToEBPF);
+    // program = program->apply(rewriteToEBPF);
 
     // map IR node to compile-time allocated resource blocks.
     toplevel->apply(*new BMV2::BuildResourceMap(&structure.resourceMap));
@@ -106,7 +132,8 @@ bool Backend::process() {
 
 //     PassManager rewriteToEBPF = {
 //         evaluator,
-//         new VisitFunctor([this, evaluator, structure]() { top = evaluator->getToplevelBlock(); }),
+//         new VisitFunctor([this, evaluator, structure]() { top = evaluator->getToplevelBlock();
+//         }),
 //     };
 
 //     auto hook = options.getDebugHook();
@@ -141,6 +168,68 @@ bool Backend::process() {
 //     return true;
 // }
 
+template <typename T>
+static T _invertBytes(T val, size_t bytes) {
+    T ret = 0;
+    for (size_t i = 0; i < bytes; ++i) {
+        ret = (ret << 8) | (val & 0xFF);
+        val >>= 8;
+    }
+
+    return ret;
+}
+
+JsonData *Backend::toJson() const {
+    constexpr auto start = "start";
+    // const auto &offsetAndLength = tcIR->selectExpressions.at(start);
+    JsonObject *json = new JsonObject();
+    json->emplace("parsers", new JsonObject({{"name", new JsonString(options.introspecFile)},
+                                             {"root-node", new JsonString(start)}}));
+    // {
+    //   "name": "ether_node",
+    //   "min-hdr-length": 14,
+    //   "next-proto": {
+    //     "field-off": 12,
+    //     "field-len": 2,
+    //     "table": "ether_table"
+    //   }
+    // }
+    auto *parseNodes = new JsonVector();
+    for (auto &&it : tcIR->stateExtracts) {
+        auto *node = new JsonObject(
+            {{"name", new JsonString(it.first)},
+             {"min-hdr-length", new JsonNumber(it.second.second)}});
+
+        if (auto it_ = tcIR->selectExpressions.find(it.first); it_ != tcIR->selectExpressions.end()) {
+            const auto &offsetAndLength = it_->second;
+            node->emplace("next-proto",
+                new JsonObject(
+                    {{"field-off", new JsonNumber(std::get<1>(offsetAndLength))},
+                    {"field-len", new JsonNumber(std::get<2>(offsetAndLength))},
+                    {"table", new JsonString(std::string(it.first.c_str()) + "_table")}}));
+            
+        }
+        parseNodes->push_back(node);
+    }
+    json->emplace("parse-nodes", parseNodes);
+    auto protoTables = new JsonVector();
+    for (auto &&[state, nextStates] : tcIR->stateMap) {
+        auto *table = new JsonObject({{"name", new JsonString(std::string(state) + "_table")}});
+        auto *entries = new JsonVector();
+        for (auto &&[state_, keyset] : nextStates) {
+            /// TODO: transform into big-endian
+            const size_t fieldLength = std::get<2>(tcIR->selectExpressions.at(state));
+            entries->push_back(new JsonObject(
+                {{"node", new JsonString(state_)}, {"key", new JsonNumber(_invertBytes(keyset, fieldLength))}}));
+        }
+        table->emplace("ents", entries);
+        protoTables->push_back(table);
+    }
+    json->emplace("proto-tables", protoTables);
+
+    return json;
+}
+
 void Backend::serialize() const {
     if (!options.outputFile.isNullOrEmpty()) {
         auto outstream = openFile(options.outputFile, false);
@@ -154,9 +243,17 @@ void Backend::serialize() const {
         if (cstream == nullptr) return;
         if (ebpf_program == nullptr) return;
         EBPF::CodeBuilder c(target);
-        //ebpf_program->emit(&c);
+        // ebpf_program->emit(&c);
         *cstream << c.toString();
         cstream->flush();
+    }
+    if (!options.introspecFile.isNullOrEmpty()) {
+        auto jsonstream = openFile(options.introspecFile, false);
+        if (jsonstream != nullptr) {
+            // if (true) {
+            auto *json = toJson();
+            JSONGenerator(*jsonstream) << json << std::endl;
+        }
     }
 }
 
@@ -187,7 +284,7 @@ void ConvertToBackendIR::setPipelineName() {
 }
 
 bool ConvertToBackendIR::preorder(const IR::P4Program *p) {
-  std::cout << "p4program" << std::endl;
+    std::cout << "p4program" << std::endl;
     if (p != nullptr) {
         setPipelineName();
         return true;
@@ -210,37 +307,82 @@ bool ConvertToBackendIR::isDuplicateOrNoAction(const IR::P4Action *action) {
 }
 
 void ConvertToBackendIR::postorder(const IR::P4Parser *parser) {
-  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(parser).name() << std::endl;
+    std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(parser).name()
+              << std::endl;
 
-  for (auto s : parser->states) {
-    std::cout << std::endl << s << std::endl;;
-    if (s->selectExpression) {
-      if (auto * p = s->selectExpression->to<IR::PathExpression>()) {
-        std::cout << "path expression " << *s->selectExpression << std::endl;
-      }
-      if (auto * p = s->selectExpression->to<IR::SelectExpression>()) {
-        std::cout << "Select expression " << p->select << std::endl;
-
-        for (auto&& e : p->select->components) {
-          std::cout << "expression " << e << " " << typeid(*e).name() << " " << e->node_type_name() << std::endl;
+    const cstring start = "start";
+    for (auto s : parser->states) {
+        std::cout << std::endl << s << std::endl;
+        const auto stateStr = s->getName().toString();
+        for (auto c : s->components) {
+            if (auto *p = c->to<IR::MethodCallStatement>()) {
+                std::cout << "State method call statement component " << *p << std::endl;
+                auto const methodStr = p->methodCall->method->toString();
+                if (methodStr.endsWith(".extract")) {
+                    const auto *args = p->methodCall->arguments;
+                    const auto *typeArgs = p->methodCall->typeArguments;
+                    const auto *arg = *args->begin();
+                    const auto *typeArg = *typeArgs->begin();
+                    const auto typeWidth = typeMap->getTypeType(typeArg, true)->width_bits();
+                    // const auto *path = typeArg->path;
+                    const auto argStr = arg->toString();
+                    const auto typeArgStr = typeArg->toString();
+                    stateExtracts.emplace(stateStr, std::make_pair(typeArgStr, typeWidth >> 3));
+                    std::cout << "Extract " << stateStr << ": " << arg << " " << typeArg
+                              << std::endl;
+                    // std::cout << "Path " << path << std::endl;
+                }
+                // std::cout << "\n\tMethod " << method->toString();
+                // for (auto typeArg : *typeArgs) {
+                //     std::cout << "Type argument " << typeArg->toString() << std::endl;
+                // }
+            } else {
+                std::cout << "State irrelevant component " << *c << std::endl;
+            }
         }
-        
-      }
-      else {
-        std::cout << "unknown expression" << std::endl;
-        std::cout << *s->selectExpression << " " << typeid(*s->selectExpression).name() << std::endl;
-      }
-    }
-  }
+        if (s->selectExpression) {
+            if (auto *p = s->selectExpression->to<IR::PathExpression>()) {
+                std::cout << "Path expression " << *p << std::endl;
+            } else if (auto *p = s->selectExpression->to<IR::SelectExpression>()) {
+                std::cout << "Select expression " << p->select << std::endl;
 
+                for (const auto e : p->select->components) {
+                    const auto *m = e->to<IR::Member>();
+                    std::cout << "\texpression " << m << " offset " << m->offset_bits()
+                              << std::endl;
+                    const auto typeStr = stateExtracts.at(stateStr).first;
+                    const auto widthBytes = stateExtracts.at(stateStr).second;
+                    selectExpressions.emplace(
+                        stateStr, std::make_tuple(typeStr, widthBytes - (m->msb() >> 3) - 1,
+                                                  m->type->width_bits() >> 3));
+                }
+
+                for (const auto case_ : p->selectCases) {
+                    std::cout << "\tcase " << case_;
+                    std::cout << "\n\tkeyset " << case_->keyset << " "
+                              << case_->keyset->node_type_name();
+                    std::cout << "\n\tstate " << case_->state << std::endl;
+                    if (auto *constant = case_->keyset->to<IR::Constant>()) {
+                        const auto nextStateStr = case_->state->toString();
+                        stateMap[stateStr].push_back(std::make_pair(nextStateStr, constant->value));
+                    }
+                }
+            } else {
+                std::cout << "unknown expression" << std::endl;
+                std::cout << *s->selectExpression << " " << typeid(*s->selectExpression).name()
+                          << std::endl;
+            }
+        }
+    }
 }
 
 void ConvertToBackendIR::postorder(const IR::P4Action *action) {
-  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(action).name() << std::endl;
+    //   std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(action).name()
+    //   << std::endl;
     if (action != nullptr) {
         if (isDuplicateOrNoAction(action)) return;
         auto actionName = externalName(action);
-        std::cout << "Action name " << actionName << std::endl;
+        // std::cout << "Action name " << actionName << std::endl;
         actions.emplace(actionName, action);
         actionCount++;
         unsigned int actionId = actionCount;
@@ -252,7 +394,7 @@ void ConvertToBackendIR::postorder(const IR::P4Action *action) {
         if (paramList != nullptr && !paramList->empty()) {
             for (auto param : paramList->parameters) {
                 auto paramType = typeMap->getType(param);
-                std::cout << "Parameter type " << paramType << std::endl;
+                // std::cout << "Parameter type " << paramType << std::endl;
                 IR::PILActionParam *tcActionParam = new IR::PILActionParam();
                 tcActionParam->setParamName(param->name.originalName);
                 if (!paramType->is<IR::Type_Bits>()) {
@@ -295,7 +437,8 @@ void ConvertToBackendIR::postorder(const IR::P4Action *action) {
 }
 
 void ConvertToBackendIR::updateDefaultMissAction(const IR::P4Table *t, IR::PILTable *tabledef) {
-  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(tabledef).name() << std::endl;
+    //   std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " <<
+    //   typeid(tabledef).name() << std::endl;
     auto defaultAction = t->getDefaultAction();
     if (defaultAction == nullptr || !defaultAction->is<IR::MethodCallExpression>()) return;
     auto methodexp = defaultAction->to<IR::MethodCallExpression>();
@@ -318,7 +461,8 @@ void ConvertToBackendIR::updateDefaultMissAction(const IR::P4Table *t, IR::PILTa
 }
 
 void ConvertToBackendIR::updateDefaultHitAction(const IR::P4Table *t, IR::PILTable *tabledef) {
-  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(tabledef).name() << std::endl;
+    //   std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " <<
+    //   typeid(tabledef).name() << std::endl;
     auto actionlist = t->getActionList();
     if (actionlist != nullptr) {
         unsigned int defaultHit = 0;
@@ -406,12 +550,13 @@ void ConvertToBackendIR::updateDefaultHitAction(const IR::P4Table *t, IR::PILTab
 }
 
 void ConvertToBackendIR::postorder(const IR::P4Table *t) {
-  std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(t).name() << std::endl;
+    //   std::cout << __func__ << " " << __FILE__ << ":" << __LINE__ << " " << typeid(t).name() <<
+    //   std::endl;
     if (t != nullptr) {
         tableCount++;
         unsigned int tId = tableCount;
         auto tName = t->name.originalName;
-        std::cout << "Table name " << t->name.originalName << std::endl;
+        // std::cout << "Table name " << t->name.originalName << std::endl;
         tableIDList.emplace(tId, tName);
         auto ctrl = findContext<IR::P4Control>();
         auto cName = ctrl->name.originalName;
