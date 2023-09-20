@@ -179,6 +179,14 @@ static T _invertBytes(T val, size_t bytes) {
     return ret;
 }
 
+template <typename T, typename F>
+static std::string _toFormat(T &&val, F &&format) {
+    std::ostringstream oss;
+    oss << format << val;
+
+    return oss.str();
+}
+
 JsonData *Backend::toJson() const {
     constexpr auto start = "start";
     // const auto &offsetAndLength = tcIR->selectExpressions.at(start);
@@ -196,18 +204,18 @@ JsonData *Backend::toJson() const {
     // }
     auto *parseNodes = new JsonVector();
     for (auto &&it : tcIR->stateExtracts) {
-        auto *node = new JsonObject(
-            {{"name", new JsonString(it.first)},
-             {"min-hdr-length", new JsonNumber(it.second.second)}});
+        auto *node = new JsonObject({{"name", new JsonString(it.first)},
+                                     {"min-hdr-length", new JsonNumber(it.second.second)}});
 
-        if (auto it_ = tcIR->selectExpressions.find(it.first); it_ != tcIR->selectExpressions.end()) {
+        if (auto it_ = tcIR->selectExpressions.find(it.first);
+            it_ != tcIR->selectExpressions.end()) {
             const auto &offsetAndLength = it_->second;
-            node->emplace("next-proto",
+            node->emplace(
+                "next-proto",
                 new JsonObject(
                     {{"field-off", new JsonNumber(std::get<1>(offsetAndLength))},
-                    {"field-len", new JsonNumber(std::get<2>(offsetAndLength))},
-                    {"table", new JsonString(std::string(it.first.c_str()) + "_table")}}));
-            
+                     {"field-len", new JsonNumber(std::get<2>(offsetAndLength))},
+                     {"table", new JsonString(std::string(it.first.c_str()) + "_table")}}));
         }
         parseNodes->push_back(node);
     }
@@ -220,7 +228,9 @@ JsonData *Backend::toJson() const {
             /// TODO: transform into big-endian
             const size_t fieldLength = std::get<2>(tcIR->selectExpressions.at(state));
             entries->push_back(new JsonObject(
-                {{"node", new JsonString(state_)}, {"key", new JsonNumber(_invertBytes(keyset, fieldLength))}}));
+                {{"node", new JsonString(state_)},
+                 {"key", new JsonString(std::string("0x") +
+                                        _toFormat(_invertBytes(keyset, fieldLength), std::hex))}}));
         }
         table->emplace("ents", entries);
         protoTables->push_back(table);
