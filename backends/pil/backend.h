@@ -66,7 +66,7 @@ class ConvertToBackendIR : public Inspector {
     ordered_map<unsigned, cstring> tableIDList;
     ordered_map<unsigned, cstring> actionIDList;
     ordered_map<unsigned, unsigned> tableKeysizeList;
-    ordered_map<cstring, std::pair<cstring, int>> stateExtracts;
+    ordered_map<cstring, std::tuple<cstring, int, cstring, int>> stateExtracts;
     ordered_map<cstring, std::tuple<cstring, int, int>> selectExpressions;
     ordered_map<cstring, std::vector<std::pair<cstring, big_int>>> stateMap;
 

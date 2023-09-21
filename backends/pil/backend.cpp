@@ -41,9 +41,17 @@ std::ostream &operator<<(std::ostream &os, const std::pair<T1, T2> &p) {
     return os << "(" << p.first << ", " << p.second << ")";
 }
 
-template <typename T1, typename T2, typename T3>
-std::ostream &operator<<(std::ostream &os, const std::tuple<T1, T2, T3> &p) {
-    return os << "(" << std::get<0>(p) << ", " << std::get<1>(p) << ", " << std::get<2>(p) << ")";
+template <typename... Ts, size_t... I>
+void print(std::ostream &os, const std::tuple<Ts...> &t, std::index_sequence<I...>) {
+    constexpr auto len = sizeof...(I);
+    ((os << std::get<I>(t) << (I == len - 1 ? "" : ", ")), ...);
+}
+
+template <typename... Ts>
+std::ostream &operator<<(std::ostream &os, const std::tuple<Ts...> t) {
+    os << "(";
+    print(os, t, std::make_index_sequence<sizeof...(Ts)>());
+    return os << ")";
 }
 
 bool Backend::process() {
@@ -205,7 +213,7 @@ JsonData *Backend::toJson() const {
     auto *parseNodes = new JsonVector();
     for (auto &&it : tcIR->stateExtracts) {
         auto *node = new JsonObject({{"name", new JsonString(it.first)},
-                                     {"min-hdr-length", new JsonNumber(it.second.second)}});
+                                     {"min-hdr-length", new JsonNumber(std::get<1>(it.second))}});
 
         if (auto it_ = tcIR->selectExpressions.find(it.first);
             it_ != tcIR->selectExpressions.end()) {
@@ -217,6 +225,14 @@ JsonData *Backend::toJson() const {
                      {"field-len", new JsonNumber(std::get<2>(offsetAndLength))},
                      {"table", new JsonString(std::string(it.first.c_str()) + "_table")}}));
         }
+        node->emplace("metadata",
+                      new JsonObject(
+                          {{"ents", new JsonVector({new JsonObject(
+                                        {{"name", new JsonString(std::get<2>(it.second))},
+                                         {"type", new JsonString("extract")},
+                                         {"md-off", new JsonNumber(std::get<3>(it.second))},
+                                         {"hdr-src-off", new JsonNumber(0)},
+                                         {"length", new JsonNumber(std::get<1>(it.second))}})})}}));
         parseNodes->push_back(node);
     }
     json->emplace("parse-nodes", parseNodes);
@@ -225,7 +241,6 @@ JsonData *Backend::toJson() const {
         auto *table = new JsonObject({{"name", new JsonString(std::string(state) + "_table")}});
         auto *entries = new JsonVector();
         for (auto &&[state_, keyset] : nextStates) {
-            /// TODO: transform into big-endian
             const size_t fieldLength = std::get<2>(tcIR->selectExpressions.at(state));
             entries->push_back(new JsonObject(
                 {{"node", new JsonString(state_)},
@@ -333,13 +348,20 @@ void ConvertToBackendIR::postorder(const IR::P4Parser *parser) {
                     const auto *typeArgs = p->methodCall->typeArguments;
                     const auto *arg = *args->begin();
                     const auto *typeArg = *typeArgs->begin();
-                    const auto typeWidth = typeMap->getTypeType(typeArg, true)->width_bits();
                     // const auto *path = typeArg->path;
                     const auto argStr = arg->toString();
                     const auto typeArgStr = typeArg->toString();
-                    stateExtracts.emplace(stateStr, std::make_pair(typeArgStr, typeWidth >> 3));
-                    std::cout << "Extract " << stateStr << ": " << arg << " " << typeArg
-                              << std::endl;
+                    const auto typeWidthBytes =
+                        typeMap->getTypeType(typeArg, true)->width_bits() >> 3;
+                    const auto *member = arg->expression->to<IR::Member>();
+                    const auto headerWidthBytes =
+                        member->expr->type->to<IR::Type_StructLike>()->width_bits() >> 3;
+                    const auto offset = headerWidthBytes - (member->msb() >> 3) - 1;
+
+                    stateExtracts.emplace(
+                        stateStr, std::make_tuple(typeArgStr, typeWidthBytes, argStr, offset));
+                    std::cout << "Extract " << stateStr << ": " << arg->expression << " (offset "
+                              << offset << ") " << typeArg << " " << argStr << std::endl;
                     // std::cout << "Path " << path << std::endl;
                 }
                 // std::cout << "\n\tMethod " << method->toString();
@@ -360,8 +382,8 @@ void ConvertToBackendIR::postorder(const IR::P4Parser *parser) {
                     const auto *m = e->to<IR::Member>();
                     std::cout << "\texpression " << m << " offset " << m->offset_bits()
                               << std::endl;
-                    const auto typeStr = stateExtracts.at(stateStr).first;
-                    const auto widthBytes = stateExtracts.at(stateStr).second;
+                    const auto typeStr = std::get<0>(stateExtracts.at(stateStr));
+                    const auto widthBytes = std::get<1>(stateExtracts.at(stateStr));
                     selectExpressions.emplace(
                         stateStr, std::make_tuple(typeStr, widthBytes - (m->msb() >> 3) - 1,
                                                   m->type->width_bits() >> 3));
