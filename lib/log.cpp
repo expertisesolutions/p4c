@@ -31,6 +31,7 @@ limitations under the License.
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <stdint.h>
 
 #include "log.h"
 #ifdef MULTITHREAD

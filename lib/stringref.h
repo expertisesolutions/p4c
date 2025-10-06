@@ -213,7 +213,7 @@ struct StringRef {
     Split split(char) const;
     Split split(const char *) const;
 };
-
+namespace p4 {
 template <class T>
 inline auto operator==(T a, const StringRef &b) -> decltype(b.operator==(a)) {
     return b == a;
@@ -238,7 +238,7 @@ template <class T>
 inline auto operator<(T a, const StringRef &b) -> decltype(b.operator>(a)) {
     return b > a;
 }
-
+}
 inline std::ostream &operator<<(std::ostream &os, const StringRef &a) {
     return a.len ? os.write(a.p, a.len) : os;
 }

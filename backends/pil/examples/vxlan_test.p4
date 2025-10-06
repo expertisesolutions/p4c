@@ -1,5 +1,5 @@
 #include <core.p4>
-#include <dpdk/pna.p4>
+#include <pna.p4>
 
 const bit<16> ETHERTYPE_IPV4 = 0x0800;
 const bit<16> ETHERTYPE_IPV6 = 0x86dd;
